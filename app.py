@@ -1,0 +1,135 @@
+import streamlit as st
+import numpy as np
+from PIL import Image
+import tensorflow as tf
+from tensorflow.keras.applications.resnet_v2 import preprocess_input
+
+# =========================
+# CONFIG PAGE
+# =========================
+st.set_page_config(
+    page_title="Deteksi Penyakit Cabai",
+    page_icon="🌶️",
+    layout="centered"
+)
+
+# =========================
+# LOAD MODEL (CACHE)
+# =========================
+@st.cache_resource
+def load_my_model():
+    return tf.keras.models.load_model("model/ResNet50_v2_model.keras")
+
+model = load_my_model()
+
+# =========================
+# CLASS NAMES
+# =========================
+class_names = [
+    "Antraknosa",
+    "Busuk Buah",
+    "Cercospora",
+    "Lalat Buah",
+    "Healty"
+]
+
+# =========================
+# UI HEADER
+# =========================
+st.title("🌶️ Deteksi Penyakit Tanaman Cabai")
+st.write("Upload gambar atau gunakan kamera untuk mendeteksi penyakit pada cabai.")
+
+st.divider()
+
+# =========================
+# PILIH SUMBER INPUT
+# =========================
+option = st.radio(
+    "Pilih sumber gambar:",
+    ["Upload Gambar", "Gunakan Kamera"]
+)
+
+image = None
+
+# =========================
+# INPUT DARI FILE
+# =========================
+if option == "Upload Gambar":
+    uploaded_file = st.file_uploader(
+        "Pilih gambar...",
+        type=["jpg", "png", "jpeg"]
+    )
+
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file).convert("RGB")
+
+# =========================
+# INPUT DARI KAMERA
+# =========================
+elif option == "Gunakan Kamera":
+    camera_image = st.camera_input("Ambil gambar")
+
+    if camera_image is not None:
+        image = Image.open(camera_image).convert("RGB")
+
+# =========================
+# PROSES JIKA ADA GAMBAR
+# =========================
+if image is not None:
+
+    # Tampilkan gambar
+    st.image(image, caption="Gambar yang digunakan", use_container_width=True)
+
+    # Preprocessing
+    img = image.resize((224, 224))
+    img_array = tf.keras.preprocessing.image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_preprocessed = preprocess_input(img_array)
+
+    # Prediksi
+    with st.spinner("🔍 Menganalisis gambar..."):
+        prediction = model.predict(img_preprocessed)
+        index = np.argmax(prediction)
+        confidence = np.max(prediction) * 100
+
+    # =========================
+    # VALIDASI HASIL
+    # =========================
+    THRESHOLD = 70
+
+    if index < len(class_names) and confidence >= THRESHOLD:
+        result = class_names[index]
+        is_valid = True
+    else:
+        result = "Error: Hasil tidak valid"
+        is_valid = False
+
+    # =========================
+    # HASIL
+    # =========================
+    st.divider()
+    st.subheader("📊 Hasil Prediksi")
+
+    if is_valid:
+        st.success(f"**{result}**")
+
+        st.progress(int(confidence))
+        st.write(f"Tingkat Keyakinan: **{confidence:.2f}%**")
+
+        # Detail probabilitas
+        st.subheader("📈 Probabilitas Semua Kelas")
+        for i, class_name in enumerate(class_names):
+            prob = prediction[0][i] * 100
+            st.write(f"{class_name}: {prob:.2f}%")
+
+        if confidence < 80:
+            st.warning("⚠️ Keyakinan cukup rendah, pastikan gambar jelas.")
+
+    else:
+        st.error(result)
+
+# =========================
+# FOOTER
+# =========================
+st.divider()
+st.caption("Aplikasi Deteksi Penyakit Cabai menggunakan Deep Learning (ResNet50V2)")
