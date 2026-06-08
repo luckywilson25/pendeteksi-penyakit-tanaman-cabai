@@ -1,8 +1,8 @@
 import streamlit as st
+import keras
 import numpy as np
 from PIL import Image
-import tensorflow as tf
-from tensorflow.keras.applications.mobilenet_v3 import preprocess_input
+from keras.applications.mobilenet_v3 import preprocess_input
 
 # =========================
 # CONFIG PAGE
@@ -26,8 +26,9 @@ st.image(
 # =========================
 @st.cache_resource
 def load_my_model():
-    return tf.keras.models.load_model(
-        "model/MobileNetV3_model.keras"
+    return keras.models.load_model(
+        "model/MobileNetV3_model.keras",
+        compile=False
     )
 
 model = load_my_model()
@@ -69,12 +70,10 @@ image = None
 # INPUT DARI FILE
 # =========================
 if option == "Upload Gambar":
-
     uploaded_file = st.file_uploader(
         "Pilih gambar...",
         type=["jpg", "jpeg", "png"]
     )
-
     if uploaded_file is not None:
         image = Image.open(uploaded_file).convert("RGB")
 
@@ -82,9 +81,7 @@ if option == "Upload Gambar":
 # INPUT DARI KAMERA
 # =========================
 elif option == "Gunakan Kamera":
-
     camera_image = st.camera_input("Ambil gambar")
-
     if camera_image is not None:
         image = Image.open(camera_image).convert("RGB")
 
@@ -93,7 +90,6 @@ elif option == "Gunakan Kamera":
 # =========================
 if image is not None:
 
-    # Tampilkan gambar
     st.image(
         image,
         caption="Gambar yang digunakan",
@@ -105,7 +101,7 @@ if image is not None:
     # =========================
     img = image.resize((224, 224))
 
-    img_array = tf.keras.preprocessing.image.img_to_array(img)
+    img_array = keras.utils.img_to_array(img)   # ← pakai keras, bukan tf.keras
 
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -128,65 +124,40 @@ if image is not None:
     THRESHOLD = 70
 
     if index < len(class_names) and confidence >= THRESHOLD:
-
         result = class_names[index]
-
         is_valid = True
-
     else:
-
         result = "Error: Hasil tidak valid"
-
         is_valid = False
 
     # =========================
     # HASIL
     # =========================
     st.divider()
-
     st.subheader("📊 Hasil Prediksi")
 
     if is_valid:
-
         st.success(f"**{result}**")
-
         st.progress(int(confidence))
+        st.write(f"Tingkat Keyakinan: **{confidence:.2f}%**")
 
-        st.write(
-            f"Tingkat Keyakinan: "
-            f"**{confidence:.2f}%**"
-        )
-
-        # =========================
-        # DETAIL PROBABILITAS
-        # =========================
         st.subheader("📈 Probabilitas Semua Kelas")
-
         for i, class_name in enumerate(class_names):
-
             prob = prediction[0][i] * 100
+            st.write(f"{class_name}: {prob:.2f}%")
 
-            st.write(
-                f"{class_name}: {prob:.2f}%"
-            )
-
-        # Warning confidence rendah
         if confidence < 80:
-
             st.warning(
                 "⚠️ Keyakinan cukup rendah, "
                 "pastikan gambar jelas."
             )
-
     else:
-
         st.error(result)
 
 # =========================
 # FOOTER
 # =========================
 st.divider()
-
 st.caption(
     "Aplikasi Deteksi Penyakit Cabai "
     "menggunakan Deep Learning (MobileNetV3)"
